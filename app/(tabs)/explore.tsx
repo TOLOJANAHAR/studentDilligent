@@ -1,89 +1,122 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { StyleSheet, Image, Platform } from 'react-native';
+import { StyleSheet, TextInput, Button, Modal, View } from 'react-native';
+import React, { useRef, useState } from 'react';
 
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { collection, doc, setDoc, addDoc } from "firebase/firestore"; 
+import { db } from './config';
+import { Linking } from 'react-native';
+
+
+import * as MediaLibrary from 'expo-media-library';
+import ViewShot from 'react-native-view-shot';
+import QRCode from 'react-native-qrcode-svg';
 
 export default function TabTwoScreen() {
+  const [username, setName] = useState('');
+  const [id, setId] = useState('');
+  const [mail, setMail] = useState('');
+  const [qrCodeValue, setQrcode] = useState('default');
+  const [isModalVisible, setModalVisible] = useState(false); // State for modal visibility
+  const [status, requestPermission] = MediaLibrary.usePermissions();
+  const qrCodeRef = useRef(null);
+
+  function create() {
+    // submit data 
+    addDoc(collection(db, "student" ), {
+      id: id,
+      name: username,
+      mail: mail,
+    }).then(() =>{
+      //Data saved successfully
+      console.log('data submited');
+    }).catch((error) =>{
+      //failed
+      console.log(error);
+    });
+  }
+  //combine data
+  const handleGenerateQRCode = () => {
+    const combinedData = `${username}-${id}-${mail}`; // Example: username-id
+    setQrcode(combinedData);
+    console.log("ao")
+  };
+
+  if (status === null) {
+    requestPermission();
+  }
+  // mail 
+  const onSaveImageAsync = async () => {
+    try {
+        alert("Saved!");
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    const subject = 'Your Email Subject';
+    const body = qrCodeValue;
+
+    const mailtoUrl = `mailto:${mail}@example.com?subject=${subject}&body=${body}`;
+  
+    try {
+      // Open the user's default email app with pre-filled content
+      const supported = await Linking.canOpenURL(mailtoUrl);
+  
+      if (supported) {
+        await Linking.openURL(mailtoUrl);
+      } else {
+        alert('No email app found.');
+      }
+    } catch (error) {
+      console.error('Error opening email app:', error);
+    }
+  };
+  
+  // show modal
+  const showQRCodeAlert = () => {
+    setModalVisible(true);
+  };
+
+  
+  const closeAndSaveImage = async () => {
+    create();
+    handleSendEmail();
+    handleGenerateQRCode();
+    onSaveImageAsync();
+    setModalVisible(false);
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
       headerImage={<Ionicons size={310} name="code-slash" style={styles.headerImage} />}>
       <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Explore</ThemedText>
+        <ThemedText type="title">Ajout</ThemedText>
       </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
-          </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user's current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText> library
-          to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
+      <TextInput value={username} onChangeText={(username) => {setName(username)}} placeholder='id' style={styles.textBoxes} />
+      <TextInput value={id} onChangeText={(id) => {setId(id)}} placeholder='Username' style={styles.textBoxes} />
+      <TextInput value={mail} onChangeText={(mail) => {setMail(mail)}} placeholder='Mail' style={styles.textBoxes} />
+
+      <Button title="Show QR Code" onPress={showQRCodeAlert} />
+
+      {/* Modal to display the QR code */}
+      <Modal
+        transparent={true}
+        animationType="slide"
+        visible={isModalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <QRCode ref={qrCodeRef} value={qrCodeValue} size={200} />
+            <Button title="Close" onPress={closeAndSaveImage} />
+          </View>
+        </View>
+      </Modal>
     </ParallaxScrollView>
   ); 
 }
@@ -99,4 +132,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  textBoxes: {
+    width: '90%',
+    backgroundColor: 'gray',
+    fontSize: 18,
+    padding: 12,
+    borderColor: 'Gray',
+    borderWidth: 0.1,
+    marginBottom: 10, // Add margin between text inputs
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: 300,
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    alignItems: 'center',
+  }
 });
