@@ -1,109 +1,124 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { StyleSheet, TextInput, Button, Modal, View } from 'react-native';
+import { StyleSheet, TextInput, Button, Modal, View, Alert } from 'react-native';
 import React, { useRef, useState } from 'react';
 
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { collection, doc, setDoc, addDoc } from "firebase/firestore"; 
+import { collection, addDoc } from "firebase/firestore"; 
 import { db } from './config';
-import { Linking } from 'react-native';
-
-
 import * as MediaLibrary from 'expo-media-library';
-import ViewShot from 'react-native-view-shot';
 import QRCode from 'react-native-qrcode-svg';
+import * as MailComposer from 'expo-mail-composer';
+import { captureRef } from 'react-native-view-shot';
+import ViewShot from 'react-native-view-shot';
+
 
 export default function TabTwoScreen() {
   const [username, setName] = useState('');
   const [id, setId] = useState('');
   const [mail, setMail] = useState('');
   const [qrCodeValue, setQrcode] = useState('default');
-  const [isModalVisible, setModalVisible] = useState(false); // State for modal visibility
-  const [status, requestPermission] = MediaLibrary.usePermissions();
+  const [isModalVisible, setModalVisible] = useState(false);
   const qrCodeRef = useRef(null);
-
+  const [status, requestPermission] = MediaLibrary.usePermissions();
+  const imageRef = useRef(null);
+  //Add in database
   function create() {
-    // submit data 
-    addDoc(collection(db, "student" ), {
+    addDoc(collection(db, "student"), {
       id: id,
       name: username,
       mail: mail,
     }).then(() =>{
-      //Data saved successfully
-      console.log('data submited');
+      console.log('Data submitted successfully');
     }).catch((error) =>{
-      //failed
       console.log(error);
     });
   }
   //combine data
   const handleGenerateQRCode = () => {
-    const combinedData = `${username}-${id}-${mail}`; // Example: username-id
+    const combinedData = `${username}-${id}-${mail}`;
     setQrcode(combinedData);
-    console.log("ao")
+  };
+  //send mail
+  const handleSendEmail = async () => {
+    const subject = 'QR Code Image';
+    const body = 'Please find the QR code image attached.';
+
+    try {
+      //convert QRCode into image
+      if (imageRef.current) {
+        const localUri = await captureRef(imageRef.current, {
+          height: 440,
+          quality: 1,
+        });
+        const { status } = await MailComposer.composeAsync({
+          recipients: [`${mail}`],
+          subject: subject,
+          body: body,
+          attachments: [localUri],
+        });
+
+        if (status === 'sent') {
+          alert('Email sent successfully!');
+        }
+      } else {
+        console.error('imageRef.current is null or undefined');
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+    }
   };
 
-  if (status === null) {
-    requestPermission();
-  }
-  // mail 
   const onSaveImageAsync = async () => {
     try {
-        alert("Saved!");
+      if (imageRef.current) {
+        const localUri = await captureRef(imageRef.current, {
+          height: 440,
+          quality: 1,
+        });
+        // await MediaLibrary.saveToLibraryAsync(localUri);
+      } else {
+        console.error('imageRef.current is null or undefined');
+      }
     } catch (e) {
       console.log(e);
     }
   };
 
-  const handleSendEmail = async () => {
-    const subject = 'Your Email Subject';
-    const body = qrCodeValue;
-
-    const mailtoUrl = `mailto:${mail}@example.com?subject=${subject}&body=${body}`;
-  
-    try {
-      // Open the user's default email app with pre-filled content
-      const supported = await Linking.canOpenURL(mailtoUrl);
-  
-      if (supported) {
-        await Linking.openURL(mailtoUrl);
-      } else {
-        alert('No email app found.');
-      }
-    } catch (error) {
-      console.error('Error opening email app:', error);
-    }
-  };
-  
-  // show modal
   const showQRCodeAlert = () => {
     setModalVisible(true);
   };
 
-  
   const closeAndSaveImage = async () => {
-    create();
-    handleSendEmail();
-    handleGenerateQRCode();
-    onSaveImageAsync();
-    setModalVisible(false);
+    try {
+      await onSaveImageAsync();
+      await create();
+      handleGenerateQRCode();
+      await handleSendEmail();
+      setModalVisible(false);
+    } catch (error) {
+      console.error('Error closing and saving image:', error);
+    }
   };
+
+  if (status === null) {
+    requestPermission();
+  }
 
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={<Ionicons size={310} name="code-slash" style={styles.headerImage} />}>
+      headerImage={<Ionicons size={310} name="code-slash" style={styles.headerImage} />}
+    >
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Ajout</ThemedText>
       </ThemedView>
-      <TextInput value={username} onChangeText={(username) => {setName(username)}} placeholder='id' style={styles.textBoxes} />
-      <TextInput value={id} onChangeText={(id) => {setId(id)}} placeholder='Username' style={styles.textBoxes} />
-      <TextInput value={mail} onChangeText={(mail) => {setMail(mail)}} placeholder='Mail' style={styles.textBoxes} />
+      <TextInput value={username} onChangeText={(username) => { setName(username) }} placeholder='Matricule' style={styles.textBoxes} />
+      <TextInput value={id} onChangeText={(id) => { setId(id) }} placeholder='Nom et Prenom' style={styles.textBoxes} />
+      <TextInput value={mail} onChangeText={(mail) => { setMail(mail) }} placeholder='Mail' style={styles.textBoxes} />
+      <Button title="Ajouter etudiant" onPress={showQRCodeAlert} />
 
-      <Button title="Show QR Code" onPress={showQRCodeAlert} />
-
-      {/* Modal to display the QR code */}
       <Modal
         transparent={true}
         animationType="slide"
@@ -111,14 +126,16 @@ export default function TabTwoScreen() {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <QRCode ref={qrCodeRef} value={qrCodeValue} size={200} />
-            <Button title="Close" onPress={closeAndSaveImage} />
-          </View>
+          <ViewShot ref={imageRef} options={{ format: 'png', quality: 1.0 }}>
+            <View style={styles.modalContent}>
+              <QRCode ref={qrCodeRef} value={qrCodeValue} size={200} />
+            </View>
+          </ViewShot>
+            <Button title="Envoyer par mail" onPress={closeAndSaveImage} />
         </View>
       </Modal>
     </ParallaxScrollView>
-  ); 
+  );
 }
 
 const styles = StyleSheet.create({
@@ -139,19 +156,20 @@ const styles = StyleSheet.create({
     padding: 12,
     borderColor: 'Gray',
     borderWidth: 0.1,
-    marginBottom: 10, // Add margin between text inputs
+    marginBottom: 10,
   },
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    height: 500
   },
   modalContent: {
     width: 300,
     padding: 20,
     backgroundColor: 'white',
-    borderRadius: 10,
+    borderRadius: 0,
     alignItems: 'center',
-  }
+  },
 });
